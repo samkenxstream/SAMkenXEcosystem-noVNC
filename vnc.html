@@ -6,6 +6,7 @@
     noVNC example: simple example using default UI
     Copyright (C) 2012 Joel Martin
     Copyright (C) 2013 Samuel Mannehed for Cendio AB
+    Copyright (C) 2016 D. R. Commander
     noVNC is licensed under the MPL 2.0 (see LICENSE.txt)
     This file is licensed under the 2-Clause BSD license (see LICENSE.txt).
 
@@ -157,6 +158,69 @@
         <div id="noVNC_settings" class="triangle-right top">
             <span id="noVNC_settings_menu">
                 <ul>
+                    <li>
+                        <label id="noVNC_encoding_method_label">Encoding method:&nbsp;</label>
+                        <select id="noVNC_encoding_method"
+                                oninput="UI.encodingMethodChanged();"
+                                onchange="UI.encodingMethodChanged();"
+                                onkeyup="UI.encodingMethodChanged();">
+                            <option value="perceptually_lossless_jpeg">Tight + Perceptually Lossless (LAN)</option>
+                            <option value="medium_quality_jpeg">Tight + Medium-Quality JPEG</option>
+                            <option value="low_quality_jpeg">Tight + Low-Quality JPEG (WAN)</option>
+                            <option value="lossless_tight">Lossless Tight (Gigabit)</option>
+                            <option value="lossless_tight_zlib">Lossless Tight + Zlib (WAN)</option>
+                            <option value="custom" disabled>Custom</option>
+                        </select>
+                    </li>
+                    <li>
+                        <input id="noVNC_jpeg" type="checkbox"
+                               oninput="UI.encodingSettingsChanged();"
+                               onchange="UI.encodingSettingsChanged();"> Allow JPEG compression
+                    </li>
+                    <li>
+                        <label id="noVNC_subsamp_label">JPEG chrominance subsampling:&nbsp;</label>
+                        <select id="noVNC_subsamp"
+                                oninput="UI.selectEncodingMethod();"
+                                onchange="UI.selectEncodingMethod();"
+                                onkeyup="UI.selectEncodingMethod();">
+                            <option value="grayscale">Grayscale (fastest)</option>
+                            <option value="4x">4X</option>
+                            <option value="2x">2X</option>
+                            <option value="none">None (best)</option>
+                        </select>
+                    </li>
+                    <li>
+                        <label id="noVNC_quality_label">Image quality:&nbsp;&nbsp;</label>
+                        <label id="noVNC_quality_value">XX</label><br>
+                        <input id="noVNC_quality" type="range"
+                               min="0" max="100" step="1"
+                               oninput="UI.encodingSettingsChanged();"
+                               onchange="UI.encodingSettingsChanged();">
+                    </li>
+                    <li>
+                        <label id="noVNC_compress_label">Compression level:&nbsp;</label>
+                        <select id="noVNC_compress_level"
+                                oninput="UI.selectEncodingMethod();"
+                                onchange="UI.selectEncodingMethod();"
+                                onkeyup="UI.selectEncodingMethod();">
+                            <option value="0">0</option>
+                            <option value="1">1</option>
+                            <option value="2">2</option>
+                            <option value="3">3</option>
+                            <option value="4">4</option>
+                            <option value="5">5</option>
+                            <option value="6">6</option>
+                            <option value="7">7</option>
+                            <option value="8">8</option>
+                            <option value="9">9</option>
+                        </select>
+                    </li>
+                    <li>
+                        <input id="noVNC_turbovnc" type="checkbox"
+                               oninput="UI.encodingSettingsChanged();"
+                               onchange="UI.encodingSettingsChanged();"> TurboVNC server
+                    </li>
+                    <hr>
                     <li><input id="noVNC_encrypt" type="checkbox"> Encrypt</li>
                     <li><input id="noVNC_true_color" type="checkbox" checked> True Color</li>
                     <li><input id="noVNC_cursor" type="checkbox"> Local Cursor</li>

@@ -2,6 +2,7 @@
  * noVNC: HTML5 VNC client
  * Copyright (C) 2012 Joel Martin
  * Copyright (C) 2015 Samuel Mannehed for Cendio AB
+ * Copyright (C) 2016 D. R. Commander
  * Licensed under MPL 2.0 (see LICENSE.txt)
  *
  * See README.md for usage and integration instructions.
@@ -88,6 +89,11 @@ var UI;
             UI.initSetting('host', window.location.hostname);
             UI.initSetting('port', port);
             UI.initSetting('password', '');
+            UI.initSetting('jpeg', true);
+            UI.initSetting('subsamp', 'none');
+            UI.initSetting('quality', 95);
+            UI.initSetting('compress_level', 1);
+            UI.initSetting('turbovnc', true);
             UI.initSetting('encrypt', (window.location.protocol === "https:"));
             UI.initSetting('true_color', true);
             UI.initSetting('cursor', !UI.isTouchDevice);
@@ -237,6 +243,155 @@ var UI;
             $D("noVNC_connect_button").onclick = UI.connect;
 
             $D("noVNC_resize").onchange = UI.enableDisableViewClip;
+        },
+
+        encodingMethodChanged: function() {
+            if ($D('noVNC_encoding_method').disabled)
+                return;
+            var method = $D('noVNC_encoding_method').value;
+            if (method == 'perceptually_lossless_jpeg') {
+                $D('noVNC_jpeg').checked = true;
+                $D('noVNC_subsamp').value = 'none';
+                $D('noVNC_quality').value = 95;
+                $D('noVNC_compress_level').value = 1;
+                UI.encodingSettingsChanged();
+            } else if (method == 'medium_quality_jpeg') {
+                $D('noVNC_jpeg').checked = true;
+                $D('noVNC_subsamp').value = '2x';
+                $D('noVNC_quality').value = 80;
+                $D('noVNC_compress_level').value = 6;
+                UI.encodingSettingsChanged();
+            } else if (method == 'low_quality_jpeg') {
+                $D('noVNC_jpeg').checked = true;
+                $D('noVNC_subsamp').value = '4x';
+                $D('noVNC_quality').value = 30;
+                $D('noVNC_compress_level').value = 7;
+                UI.encodingSettingsChanged();
+            } else if (method == 'lossless_tight') {
+                $D('noVNC_jpeg').checked = false;
+                $D('noVNC_compress_level').value = 0;
+                UI.encodingSettingsChanged();
+            } else if (method == 'lossless_tight_zlib') {
+                $D('noVNC_jpeg').checked = false;
+                $D('noVNC_compress_level').value = 6;
+                UI.encodingSettingsChanged();
+            }
+        },
+
+        selectEncodingMethod: function() {
+            if ($D('noVNC_encoding_method').disabled)
+                return;
+
+            var jpeg = $D('noVNC_jpeg').checked;
+            var level = $D('noVNC_compress_level').value;
+            var subsamp = $D('noVNC_subsamp').value;
+            var quality = $D('noVNC_quality').value;
+
+            if (subsamp == 'none' && level == 1 && quality == 95 && jpeg) {
+                $D('noVNC_encoding_method').value = 'perceptually_lossless_jpeg';
+                $D('noVNC_encoding_method').options[5].disabled = true;
+            } else if (subsamp == '2x' && level == 6 && quality == 80 &&
+                       jpeg) {
+                $D('noVNC_encoding_method').value = 'medium_quality_jpeg';
+                $D('noVNC_encoding_method').options[5].disabled = true;
+            } else if (subsamp == '4x' && level == 7 && quality == 30 &&
+                       jpeg) {
+                $D('noVNC_encoding_method').value = 'low_quality_jpeg';
+                $D('noVNC_encoding_method').options[5].disabled = true;
+            } else if (level == 0 && !jpeg) {
+                $D('noVNC_encoding_method').value = 'lossless_tight';
+                $D('noVNC_encoding_method').options[5].disabled = true;
+            } else if (level == 6 && !jpeg) {
+                $D('noVNC_encoding_method').value = 'lossless_tight_zlib';
+                $D('noVNC_encoding_method').options[5].disabled = true;
+            } else {
+                $D('noVNC_encoding_method').value = 'custom';
+                $D('noVNC_encoding_method').options[5].disabled = false;
+            }
+        },
+
+        encodingSettingsChanged: function() {
+            var jpeg = $D('noVNC_jpeg').checked;
+            var quality = $D('noVNC_quality').value;
+            var level = $D('noVNC_compress_level').value;
+            var turbovnc = $D('noVNC_turbovnc').checked;
+
+            $D('noVNC_encoding_method').disabled = !turbovnc;
+            $D('noVNC_encoding_method_label').disabled = !turbovnc;
+
+            $D('noVNC_subsamp').disabled = !jpeg || !turbovnc
+            $D('noVNC_subsamp_label').disabled = !jpeg || !turbovnc
+
+            $D('noVNC_quality').disabled = !jpeg && turbovnc
+            $D('noVNC_quality_label').disabled = !jpeg && turbovnc
+            if (turbovnc) {
+                $D('noVNC_quality').min = 1;
+                $D('noVNC_quality').max = 100;
+                if (quality < 1)
+                    quality = $D('noVNC_quality').value = 1;
+                $D('noVNC_quality_label').innerHTML = "JPEG image quality:";
+            } else {
+                $D('noVNC_quality').min = 0;
+                $D('noVNC_quality').max = 9;
+                if (quality > 9)
+                    quality = $D('noVNC_quality').value = 9;
+                $D('noVNC_quality_label').innerHTML = "Image quality:";
+            }
+            $D('noVNC_quality_value').disabled = !jpeg && turbovnc
+            $D('noVNC_quality_value').innerHTML = quality;
+
+            for (var i = 0; i <= 9; i++)
+                $D('noVNC_compress_level').options[i].disabled = false;
+            $D('noVNC_compress_level').options[0].innerHTML = "0 (no Zlib)";
+            $D('noVNC_compress_level').options[1].innerHTML = "1 (minimal)";
+            $D('noVNC_compress_level').options[9].innerHTML = "9 (extreme)";
+            if (turbovnc) {
+                $D('noVNC_compress_label').innerHTML =
+                    "Compression level (see docs):"
+                if (jpeg) {
+                    $D('noVNC_compress_level').options[0].disabled = true;
+                    $D('noVNC_compress_level').options[2].innerHTML =
+                        "2 (medium)";
+                    $D('noVNC_compress_level').options[3].disabled = true;
+                    $D('noVNC_compress_level').options[4].disabled = true;
+                    $D('noVNC_compress_level').options[5].disabled = true;
+                    $D('noVNC_compress_level').options[5].innerHTML = 5
+                    $D('noVNC_compress_level').options[6].innerHTML =
+                        "6 (CL 1 + interframe comparison)";
+                    $D('noVNC_compress_level').options[7].innerHTML =
+                        "7 (CL 2 + interframe comparison)";
+                    $D('noVNC_compress_level').options[8].disabled = true;
+                    if (level < 1) $D('noVNC_compress_level').value = 1;
+                    if (level >= 3 && level <= 4)
+                        $D('noVNC_compress_level').value = 2;
+                    if (level == 5) $D('noVNC_compress_level').value = 6;
+                    if (level == 8) $D('noVNC_compress_level').value = 7;
+                } else {
+                    $D('noVNC_compress_level').options[2].disabled = true;
+                    $D('noVNC_compress_level').options[2].innerHTML = 2;
+                    $D('noVNC_compress_level').options[3].disabled = true;
+                    $D('noVNC_compress_level').options[4].disabled = true;
+                    $D('noVNC_compress_level').options[5].innerHTML =
+                        "5 (CL 0 + interframe comparison)";
+                    $D('noVNC_compress_level').options[6].innerHTML =
+                        "6 (CL 1 + interframe comparison)";
+                    $D('noVNC_compress_level').options[7].disabled = true;
+                    $D('noVNC_compress_level').options[7].innerHTML = 7;
+                    $D('noVNC_compress_level').options[8].disabled = true;
+                    if (level >= 2 && level <= 4)
+                        $D('noVNC_compress_level').value = 1;
+                    if (level >= 6 && level <= 8)
+                        $D('noVNC_compress_level').value = 6;
+                }
+            } else {
+                $D('noVNC_compress_label').innerHTML = "Compression level:"
+                $D('noVNC_compress_level').options[2].innerHTML = 2;
+                $D('noVNC_compress_level').options[5].innerHTML = 5;
+                $D('noVNC_compress_level').options[6].innerHTML = 6;
+                $D('noVNC_compress_level').options[7].innerHTML = 7;
+            }
+
+            UI.selectEncodingMethod();
         },
 
         onresize: function (callback) {
@@ -540,6 +695,12 @@ var UI;
                 UI.settingsApply();
                 UI.closeSettingsMenu();
             } else {
+                UI.updateSetting('jpeg');
+                UI.updateSetting('subsamp');
+                UI.updateSetting('quality');
+                UI.updateSetting('compress_level');
+                UI.updateSetting('turbovnc');
+                UI.encodingSettingsChanged();
                 UI.updateSetting('encrypt');
                 UI.updateSetting('true_color');
                 if (Util.browserSupportsCursorURIs()) {
@@ -592,6 +753,11 @@ var UI;
         // Save/apply settings when 'Apply' button is pressed
         settingsApply: function() {
             //Util.Debug(">> settingsApply");
+            UI.saveSetting('jpeg');
+            UI.saveSetting('subsamp');
+            UI.saveSetting('quality');
+            UI.saveSetting('compress_level');
+            UI.saveSetting('turbovnc');
             UI.saveSetting('encrypt');
             UI.saveSetting('true_color');
             if (Util.browserSupportsCursorURIs()) {
@@ -618,8 +784,33 @@ var UI;
             UI.setViewClip();
             UI.updateViewDrag();
             //Util.Debug("<< settingsApply");
+            UI.updateEncodingSettings();
         },
 
+        updateEncodingSettings: function() {
+            if (!UI.rfb)
+                return;
+            if (UI.rfb._jpeg != UI.getSetting('jpeg')) {
+                UI.rfb.set_jpeg(UI.getSetting('jpeg'));
+                UI.rfb._encodingChanged = true;
+            }
+            if (UI.rfb._subsamp != UI.getSetting('subsamp')) {
+                UI.rfb.set_subsamp(UI.getSetting('subsamp'));
+                UI.rfb._encodingChanged = true;
+            }
+            if (UI.rfb._quality != UI.getSetting('quality')) {
+                UI.rfb.set_quality(UI.getSetting('quality'));
+                UI.rfb._encodingChanged = true;
+            }
+            if (UI.rfb._compress_level != UI.getSetting('compress_level')) {
+                UI.rfb.set_compress_level(UI.getSetting('compress_level'));
+                UI.rfb._encodingChanged = true;
+            }
+            if (UI.rfb._turbovnc != UI.getSetting('turbovnc')) {
+                UI.rfb.set_turbovnc(UI.getSetting('turbovnc'));
+                UI.rfb._encodingChanged = true;
+            }
+        },
 
 
         setPassword: function() {
@@ -826,6 +1017,7 @@ var UI;
 
             if (!UI.initRFB()) return;
 
+            UI.updateEncodingSettings();
             UI.rfb.set_encrypt(UI.getSetting('encrypt'));
             UI.rfb.set_true_color(UI.getSetting('true_color'));
             UI.rfb.set_local_cursor(UI.getSetting('cursor'));

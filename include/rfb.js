@@ -2,6 +2,7 @@
  * noVNC: HTML5 VNC client
  * Copyright (C) 2012 Joel Martin
  * Copyright (C) 2013 Samuel Mannehed for Cendio AB
+ * Copyright (C) 2016 D. R. Commander
  * Licensed under MPL 2.0 (see LICENSE.txt)
  *
  * See README.md for usage and integration instructions.
@@ -43,15 +44,14 @@ var RFB;
             ['HEXTILE',             0x05 ],
             ['RRE',                 0x02 ],
             ['RAW',                 0x00 ],
-            ['DesktopSize',         -223 ],
-            ['Cursor',              -239 ],
 
             // Psuedo-encoding settings
-            //['JPEG_quality_lo',    -32 ],
-            ['JPEG_quality_med',     -26 ],
-            //['JPEG_quality_hi',    -23 ],
-            //['compress_lo',       -255 ],
-            ['compress_hi',         -247 ],
+            ['DesktopSize',         -223 ],
+            ['Cursor',              -239 ],
+            ['CompressLevel',       -256 + 1 ],
+            ['QualityLevel',        -32 + 8 ],
+            ['FineQualityLevel',    -512 + 95 ],
+            ['Subsamp',             -768 ],
             ['last_rect',           -224 ],
             ['xvp',                 -309 ],
             ['ExtendedDesktopSize', -308 ]
@@ -114,6 +114,8 @@ var RFB;
         this._screen_id = 0;
         this._screen_flags = 0;
 
+        this._encodingChanged = true;
+
         // Mouse state
         this._mouse_buttonMask = 0;
         this._mouse_arr = [];
@@ -124,6 +126,13 @@ var RFB;
         Util.set_defaults(this, defaults, {
             'target': 'null',                       // VNC display rendering Canvas object
             'focusContainer': document,             // DOM element that captures keyboard input
+
+            'jpeg': true,                           // Allow JPEG compression
+            'subsamp': 'none',                      // JPEG chrominance subsampling
+            'quality': 95,                          // Image quality
+            'compress_level': 1,                    // Compression level
+            'turbovnc': true,                       // TurboVNC server
+
             'encrypt': false,                       // Use TLS/SSL/wss encryption
             'true_color': true,                     // Request true color pixel data
             'local_cursor': false,                  // Request locally rendered cursor
@@ -981,7 +990,7 @@ var RFB;
             }
 
             RFB.messages.pixelFormat(this._sock, this._fb_Bpp, this._fb_depth, this._true_color);
-            RFB.messages.clientEncodings(this._sock, this._encodings, this._local_cursor, this._true_color);
+            RFB.messages.clientEncodings(this, this._encodings);
             RFB.messages.fbUpdateRequests(this._sock, this._display.getCleanDirtyReset(), this._fb_width, this._fb_height);
 
             this._timing.fbu_rt_start = (new Date()).getTime();
@@ -1088,6 +1097,8 @@ var RFB;
                 case 0:  // FramebufferUpdate
                     var ret = this._framebufferUpdate();
                     if (ret) {
+                        if (this._encodingChanged)
+                            RFB.messages.clientEncodings(this, this._encodings);
                         RFB.messages.fbUpdateRequests(this._sock, this._display.getCleanDirtyReset(), this._fb_width, this._fb_height);
                         this._sock.flush();
                     }
@@ -1220,6 +1231,13 @@ var RFB;
     Util.make_properties(RFB, [
         ['target', 'wo', 'dom'],                // VNC display rendering Canvas object
         ['focusContainer', 'wo', 'dom'],        // DOM element that captures keyboard input
+
+        ['jpeg', 'rw', 'bool'],                 // Allow JPEG compression
+        ['subsamp', 'rw', 'str'],               // JPEG chrominance subsampling
+        ['quality', 'rw', 'int'],               // Image quality
+        ['compress_level', 'rw', 'int'],        // Compression level
+        ['turbovnc', 'rw', 'bool'],             // TurboVNC server
+
         ['encrypt', 'rw', 'bool'],              // Use TLS/SSL/wss encryption
         ['true_color', 'rw', 'bool'],           // Request true color pixel data
         ['local_cursor', 'rw', 'bool'],         // Request locally rendered cursor
@@ -1358,9 +1376,9 @@ var RFB;
             sock._sQlen += 20;
         },
 
-        clientEncodings: function (sock, encodings, local_cursor, true_color) {
-            var buff = sock._sQ;
-            var offset = sock._sQlen;
+        clientEncodings: function (rfb, encodings) {
+            var buff = rfb._sock._sQ;
+            var offset = rfb._sock._sQlen;
 
             buff[offset] = 2; // msg-type
             buff[offset + 1] = 0; // padding
@@ -1368,10 +1386,43 @@ var RFB;
             // offset + 2 and offset + 3 are encoding count
 
             var i, j = offset + 4, cnt = 0;
+
             for (i = 0; i < encodings.length; i++) {
-                if (encodings[i][0] === "Cursor" && !local_cursor) {
+                if (encodings[i][0] === "CompressLevel" &&
+                    rfb._compress_level >= 0 && rfb._compress_level <= 9) {
+                    encodings[i][1] = -256 + rfb._compress_level;
+                } else if (encodings[i][0] === "QualityLevel" &&
+                           rfb._quality >= 0 && rfb._quality <= 9) {
+                    encodings[i][1] = -32 + rfb._quality;
+                } else if (encodings[i][0] === "FineQualityLevel" &&
+                           rfb._quality >= 0 && rfb._quality <= 100) {
+                    encodings[i][1] = -512 + rfb._quality;
+                } else if (encodings[i][0] === "Subsamp") {
+                    if (rfb._subsamp == 'none') {
+                        encodings[i][1] = -768;
+                    } else if (rfb._subsamp == '4x') {
+                        encodings[i][1] = -767;
+                    } else if (rfb._subsamp == '2x') {
+                        encodings[i][1] = -766;
+                    } else if (rfb._subsamp == 'grayscale') {
+                        encodings[i][1] = -765;
+                    }
+                }
+            }
+
+            for (i = 0; i < encodings.length; i++) {
+                if (encodings[i][0] === "Cursor" && !rfb._local_cursor) {
                     Util.Debug("Skipping Cursor pseudo-encoding");
-                } else if (encodings[i][0] === "TIGHT" && !true_color) {
+                } else if (encodings[i][0] === "QualityLevel" &&
+                           (!rfb._jpeg || rfb._turbovnc)) {
+                    Util.Debug("Skipping QualityLevel pseudo-encoding");
+                } else if (encodings[i][0] === "FineQualityLevel" &&
+                           (!rfb._jpeg || !rfb._turbovnc)) {
+                    Util.Debug("Skipping FineQualityLevel pseudo-encoding");
+                } else if (encodings[i][0] === "Subsamp" &&
+                           (!rfb._jpeg || !rfb._turbovnc)) {
+                    Util.Debug("Skipping Subsamp pseudo-encoding");
+                } else if (encodings[i][0] === "TIGHT" && !rfb._true_color) {
                     // TODO: remove this when we have tight+non-true-color
                     Util.Warn("Skipping tight as it is only supported with true color");
                 } else {
@@ -1389,7 +1440,9 @@ var RFB;
             buff[offset + 2] = cnt >> 8;
             buff[offset + 3] = cnt;
 
-            sock._sQlen += j - offset;
+            rfb._sock._sQlen += j - offset;
+
+            rfb._encodingChanged = false;
         },
 
         fbUpdateRequests: function (sock, cleanDirty, fb_width, fb_height) {
@@ -1786,7 +1839,7 @@ var RFB;
             var cmode, data;
             var cl_header, cl_data;
 
-            var handlePalette = function () {
+            var handlePalette = function (readUncompressed) {
                 var numColors = rQ[rQi + 2] + 1;
                 var paletteSize = numColors * this._fb_depth;
                 this._FBU.bytes += paletteSize;
@@ -1826,7 +1879,7 @@ var RFB;
                 this._sock.rQshiftTo(this._paletteBuff, paletteSize);
                 this._sock.rQskipBytes(cl_header);
 
-                if (raw) {
+                if (raw || readUncompressed) {
                     data = this._sock.rQshiftBytes(cl_data);
                 } else {
                     data = decompress(this._sock.rQshiftBytes(cl_data), rowSize * this._FBU.height);
@@ -1846,7 +1899,7 @@ var RFB;
                 return true;
             }.bind(this);
 
-            var handleCopy = function () {
+            var handleCopy = function (readUncompressed) {
                 var raw = false;
                 var uncompressedSize = this._FBU.width * this._FBU.height * this._fb_depth;
                 if (uncompressedSize < 12) {
@@ -1875,7 +1928,7 @@ var RFB;
                 // Shift ctl, clength off
                 this._sock.rQshiftBytes(1 + cl_header);
 
-                if (raw) {
+                if (raw || readUncompressed) {
                     data = this._sock.rQshiftBytes(cl_data);
                 } else {
                     data = decompress(this._sock.rQshiftBytes(cl_data), uncompressedSize);
@@ -1894,6 +1947,13 @@ var RFB;
             // Figure out filter
             ctl = ctl >> 4;
             streamId = ctl & 0x3;
+
+            // Handle unofficial TurboVNC rfbTightNoZlib extension
+            var tightNoZlib = false;
+            if (!isTightPNG && (ctl & 0x0A) == 0x0A) {
+                ctl &= ~(0x0A);
+                tightNoZlib = true;
+            }
 
             if (ctl === 0x08)       cmode = "fill";
             else if (ctl === 0x09)  cmode = "jpeg";
@@ -1968,7 +2028,7 @@ var RFB;
                 case "filter":
                     var filterId = rQ[rQi + 1];
                     if (filterId === 1) {
-                        if (!handlePalette()) { return false; }
+                        if (!handlePalette(tightNoZlib)) { return false; }
                     } else {
                         // Filter 0, Copy could be valid here, but servers don't send it as an explicit filter
                         // Filter 2, Gradient is valid but not use if jpeg is enabled
@@ -1977,7 +2037,7 @@ var RFB;
                     }
                     break;
                 case "copy":
-                    if (!handleCopy()) { return false; }
+                    if (!handleCopy(tightNoZlib)) { return false; }
                     break;
             }
 
