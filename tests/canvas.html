@@ -3,7 +3,7 @@
     <head>
         <title>Canvas Performance Test</title>
         <!--
-        <script type='text/javascript' 
+        <script type='text/javascript'
             src='http://getfirebug.com/releases/lite/1.2/firebug-lite-compressed.js'></script>
         -->
         <script src="../include/util.js"></script>
@@ -72,12 +72,13 @@
             }
             display.blitImage(30, 10, 50, 50, data, 0);
 
-            img = display.getTile(5,5,16,16,[0,128,128]);
-            display.putTile(img);
+            display._tile16x16 = display._drawCtx.createImageData(16, 16);
+            display.startTile(5,5,16,16,[0,128,128]);
+            display.finishTile();
 
-            img = display.getTile(90,15,16,16,[0,0,0]);
-            display.setSubTile(img, 0,0,16,16,[128,128,0]);
-            display.putTile(img);
+            display.startTile(90,15,16,16,[0,0,0]);
+            display.subTile(0,0,16,16,[128,128,0]);
+            display.finishTile();
         }
 
         function begin () {
@@ -90,20 +91,16 @@
         function start_delayed () {
             var ret;
 
-            ret = display.set_prefer_js(true);
-            if (ret) {
-                message("Running test: prefer Javascript ops");
-                var time1 = run_test();
-                message("prefer Javascript ops: " + time1 + "ms total, " +
-                        (time1 / iterations) + "ms per frame");
-            } else {
-                message("Could not run: prefer Javascript ops");
-            }
+            display._prefer_js = true;
+            message("Running tile test (Javascript ops)");
+            var time1 = run_test();
+            message("tile test (Javascript ops): " + time1 + "ms total, " +
+                    (time1 / iterations) + "ms per frame");
 
-            display.set_prefer_js(false);
-            message("Running test: prefer Canvas ops");
+            display._prefer_js = false;
+            message("Running tile test (Canvas ops)");
             var time2 = run_test();
-            message("prefer Canvas ops: " + time2 + "ms total, " +
+            message("tile test (Canvas ops): " + time2 + "ms total, " +
                     (time2 / iterations) + "ms per frame");
 
             if (Util.get_logging() !== 'debug') {
@@ -120,15 +117,16 @@
             height = $D('height').value;
             display.resize(width, height);
             var color, start_time = (new Date()).getTime(), w, h;
+            display._tile16x16 = display._drawCtx.createImageData(16, 16);
             for (var i=0; i < iterations; i++) {
                 color = [128, 128, (255 / iterations) * i, 0];
                 for (var x=0; x < width; x = x + 16) {
                     for (var y=0; y < height; y = y + 16) {
                         w = Math.min(16, width - x);
                         h = Math.min(16, height - y);
-                        var tile = display.getTile(x, y, w, h, color);
-                        display.setSubTile(tile, 0, 0, w, h, color);
-                        display.putTile(tile);
+                        display.startTile(x, y, w, h, color);
+                        display.subTile(0, 0, w, h, color);
+                        display.finishTile();
                     }
                 }
             }
@@ -143,6 +141,7 @@
             display.resize(start_width, start_height, true);
             message("Canvas initialized");
             test_functions();
+            $D('startButton').disabled = false;
         }
     </script>
 </html>

@@ -90,7 +90,7 @@ var Display;
 
         if (this._prefer_js === null) {
             Util.Info("Prefering javascript operations");
-            this._prefer_js = true;
+            this._prefer_js = false;
         }
 
         // Determine browser support for setting the cursor via data URI scheme
