@@ -741,6 +741,10 @@ var UI;
             $D('noVNC_settings').style.display = "block";
             $D('settingsButton').className = "noVNC_status_button_selected";
             UI.settingsOpen = true;
+            if (UI.rfb) {
+              UI.rfb._keyboard.ungrab();
+              UI.rfb._mouse.ungrab();
+            }
         },
 
         // Close menu (without applying settings)
@@ -748,6 +752,10 @@ var UI;
             $D('noVNC_settings').style.display = "none";
             $D('settingsButton').className = "noVNC_status_button";
             UI.settingsOpen = false;
+            if (UI.rfb) {
+              UI.rfb._keyboard.grab();
+              UI.rfb._mouse.grab();
+            }
         },
 
         // Save/apply settings when 'Apply' button is pressed
