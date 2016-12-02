@@ -314,10 +314,13 @@ var UI;
             var jpeg = $D('noVNC_jpeg').checked;
             var quality = $D('noVNC_quality').value;
             var level = $D('noVNC_compress_level').value;
-            var turbovnc = $D('noVNC_turbovnc').checked;
+            var true_color = $D('noVNC_true_color').checked;
+            var turbovnc = $D('noVNC_turbovnc').checked && true_color;
 
             $D('noVNC_encoding_method').disabled = !turbovnc;
             $D('noVNC_encoding_method_label').disabled = !turbovnc;
+
+            $D('noVNC_jpeg').disabled = !true_color;
 
             $D('noVNC_subsamp').disabled = !jpeg || !turbovnc
             $D('noVNC_subsamp_label').disabled = !jpeg || !turbovnc
@@ -390,6 +393,8 @@ var UI;
                 $D('noVNC_compress_level').options[6].innerHTML = 6;
                 $D('noVNC_compress_level').options[7].innerHTML = 7;
             }
+
+            $D('noVNC_turbovnc').disabled = !true_color;
 
             UI.selectEncodingMethod();
         },
